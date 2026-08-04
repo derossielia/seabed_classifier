@@ -29,7 +29,7 @@ Thumbs.db
 # MA non dobbiamo ignorare il CMakeLists.txt!
 !CMakeLists.txt
 
-# === Binari e Librerie Compilate ===
+# === Libraries ===
 *.o
 *.obj
 *.out
@@ -39,3 +39,9 @@ Thumbs.db
 *.dll
 *.lib
 *.a
+# === images and training data ===
+build/
+dataset/
+*.jpg
+*.png
+*.mp4
