@@ -1,1 +1,1 @@
-// MAIN AUTHOR: member C
+// MAIN AUTHOR: Marco Rossi (member B)
