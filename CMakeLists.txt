@@ -15,6 +15,7 @@ add_executable(seabed_classifier
     src/main.cpp 
     src/preprocessing.cpp 
     src/classifier.cpp
+    src/utils.cpp
 )
 
 #connect executable with OpenCV's compiled libraries

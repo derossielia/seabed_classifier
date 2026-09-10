@@ -24,9 +24,7 @@ Thumbs.db
 *.filters
 
 # === Output Locali dell'Applicazione ===
-# Ignoriamo i file .txt di predizione generati localmente per non sporcare il repo
 *.txt
-# MA non dobbiamo ignorare il CMakeLists.txt!
 !CMakeLists.txt
 
 # === Libraries ===
@@ -41,7 +39,7 @@ Thumbs.db
 *.a
 # === images and training data ===
 build/
-dataset/
+data/
 *.jpg
 *.png
 *.mp4

@@ -1,57 +1,70 @@
 // MAIN AUTHOR: Elia De Rossi (member A)
-// MAIN AUTHOR: Member A
 
 #include "preprocessing.hpp"
-#include <iostream>
-#include <vector>
 
 namespace Preprocessing {
 
-    cv::Mat removeNoise(const cv::Mat& inputImage, int kernelSize) {                        // Noise reduction
-        if (inputImage.empty()) {
-            std::cerr << "Error [Preprocessing]: Empty image passed to removeNoise!" << std::endl;
-            return cv::Mat();
-        }
-
-        // Kernel dimensions for spatial filtering must be odd positive integers
-        if (kernelSize % 2 == 0) {
-            kernelSize++;
-        }
-
-        cv::Mat smoothed;
-        cv::GaussianBlur(inputImage, smoothed, cv::Size(kernelSize, kernelSize), 0);
-        return smoothed;
+cv::Mat removeNoise(const cv::Mat& inputImage, int kernelSize) {
+    if (inputImage.empty()) {
+        return cv::Mat();
     }
 
-    cv::Mat convertToHSV(const cv::Mat& inputImage) {                                       // Color space conversion
-        if (inputImage.empty()) {
-            std::cerr << "Error [Preprocessing]: Empty image passed to convertToHSV!" << std::endl;
-            return cv::Mat();
-        }
+    // Ensure kernel size is an odd integer >= 3
+    if (kernelSize <= 1) {
+        kernelSize = 3;
+    } else if (kernelSize % 2 == 0) {
+        kernelSize += 1;
+    }
 
-        cv::Mat hsvImage;
+    cv::Mat filtered;
+    cv::medianBlur(inputImage, filtered, kernelSize);
+    return filtered;
+}
+
+cv::Mat convertToHSV(const cv::Mat& inputImage) {
+    if (inputImage.empty()) {
+        return cv::Mat();
+    }
+
+    cv::Mat hsvImage;
+    if (inputImage.channels() == 3) {
         cv::cvtColor(inputImage, hsvImage, cv::COLOR_BGR2HSV);
-        return hsvImage;
+    } else {
+        hsvImage = inputImage.clone();
     }
 
-    cv::Mat enhanceContrast(const cv::Mat& inputImage) {                                    // Luminance equalization (for contrast enhancing without hue distorsion)
-        if (inputImage.empty()) {
-            std::cerr << "Error [Preprocessing]: Empty image passed to enhanceContrast!" << std::endl;
-            return cv::Mat();
-        }
+    return hsvImage;
+}
 
+cv::Mat enhanceContrast(const cv::Mat& inputImage) {
+    if (inputImage.empty()) {
+        return cv::Mat();
+    }
+
+    // For multi-channel images, equalize luminance only to preserve chromaticity
+    if (inputImage.channels() == 3) {
         cv::Mat ycrcb;
         cv::cvtColor(inputImage, ycrcb, cv::COLOR_BGR2YCrCb);
 
-        std::vector<cv::Mat> channels;                  // Split YCrCb into individual single-channel cv::Mat objects
+        std::vector<cv::Mat> channels;
         cv::split(ycrcb, channels);
 
-        cv::equalizeHist(channels[0], channels[0]);     // Equalize histogram only on channel 0 (Y = Intensity)
+        // CLAHE avoids over-amplifying background underwater haze
+        cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(2.0, cv::Size(8, 8));
+        clahe->apply(channels[0], channels[0]);
 
-        cv::Mat result;                                 // Merge channels back together and convert to BGR
-        cv::merge(channels, ycrcb);
-        cv::cvtColor(ycrcb, result, cv::COLOR_YCrCb2BGR);
+        cv::Mat enhancedYCrCb;
+        cv::merge(channels, enhancedYCrCb);
+
+        cv::Mat result;
+        cv::cvtColor(enhancedYCrCb, result, cv::COLOR_YCrCb2BGR);
         return result;
     }
 
+    // Single-channel fallback
+    cv::Mat result;
+    cv::equalizeHist(inputImage, result);
+    return result;
 }
+
+} // namespace Preprocessing
