@@ -1,12 +1,11 @@
 // MAIN AUTHOR: Elia De Rossi (member A)
 
 #include "utils.hpp"
-#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <set>
-
-namespace fs = std::filesystem;
+#include <sys/stat.h>
+#include <sys/types.h>
 
 namespace Utils {
 
@@ -16,22 +15,21 @@ bool loadImage(const std::string& filepath, cv::Mat& outputImage) {
 }
 
 bool ensureDirectoryExists(const std::string& folderPath) {
-    if (!fs::exists(folderPath)) {
-        return fs::create_directories(folderPath);
+    struct stat info;
+    if (stat(folderPath.c_str(), &info) != 0) {
+        // Directory does not exist, create it (read/write/search permissions)
+        return mkdir(folderPath.c_str(), 0755) == 0;
     }
-    return true;
+    return (info.st_mode & S_IFDIR) != 0;
 }
 
 bool savePredictionTxt(const std::string& outputDir, const std::string& originalFilename, const std::string& label) {
-    fs::path p(originalFilename);
-    std::string stem = p.stem().string(); // Strips extension: image.png -> image
-    std::string outPath = (fs::path(outputDir) / (stem + ".txt")).string();
+    size_t lastDot = originalFilename.find_last_of(".");
+    std::string stem = (lastDot == std::string::npos) ? originalFilename : originalFilename.substr(0, lastDot);
+    std::string outPath = outputDir + "/" + stem + ".txt";
 
     std::ofstream out(outPath);
-    if (!out.is_open()) {
-        std::cerr << "[Error] Could not write to: " << outPath << std::endl;
-        return false;
-    }
+    if (!out.is_open()) return false;
     out << label << "\n";
     out.close();
     return true;
