@@ -1,39 +1,26 @@
 // MAIN AUTHOR: Elia De Rossi (member A)
 
 #include "preprocessing.hpp"
+#include <vector>
 
 namespace Preprocessing {
 
 cv::Mat removeNoise(const cv::Mat& inputImage, int kernelSize) {
-    if (inputImage.empty()) {
-        return cv::Mat();
-    }
-
-    // Ensure kernel size is an odd integer >= 3
-    if (kernelSize <= 1) {
-        kernelSize = 3;
-    } else if (kernelSize % 2 == 0) {
-        kernelSize += 1;
-    }
-
-    cv::Mat filtered;
-    cv::bilateralFilter(inputImage, filtered, 9, 75.0, 75.0);
-    return filtered;
+    if (inputImage.empty()) return cv::Mat();
+    
+    // Kernel size must be positive and odd
+    if (kernelSize % 2 == 0) kernelSize += 1;
+    
+    cv::Mat denoised;
+    cv::medianBlur(inputImage, denoised, kernelSize);
+    return denoised;
 }
 
 cv::Mat convertToHSV(const cv::Mat& inputImage) {
-    if (inputImage.empty()) {
-        return cv::Mat();
-    }
-
-    cv::Mat hsvImage;
-    if (inputImage.channels() == 3) {
-        cv::cvtColor(inputImage, hsvImage, cv::COLOR_BGR2HSV);
-    } else {
-        hsvImage = inputImage.clone();
-    }
-
-    return hsvImage;
+    if (inputImage.empty()) return cv::Mat();
+    cv::Mat hsv;
+    cv::cvtColor(inputImage, hsv, cv::COLOR_BGR2HSV);
+    return hsv;
 }
 
 cv::Mat enhanceContrast(const cv::Mat& inputImage) {
@@ -45,8 +32,8 @@ cv::Mat enhanceContrast(const cv::Mat& inputImage) {
     std::vector<cv::Mat> channels;
     cv::split(lab, channels);
 
-    // Lower clipLimit (1.5) prevents boosting murky particulate noise
-    cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(1.5, cv::Size(8, 8));
+    // CLAHE on Luminance channel only (prevents color distortion)
+    cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(2.0, cv::Size(8, 8));
     clahe->apply(channels[0], channels[0]);
 
     cv::Mat enhancedLab;

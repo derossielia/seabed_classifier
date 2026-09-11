@@ -12,27 +12,28 @@ std::string Classifier::predict(const cv::Mat& inputImage) {
     cv::cvtColor(inputImage, hsv, cv::COLOR_BGR2HSV);
     cv::cvtColor(inputImage, gray, cv::COLOR_BGR2GRAY);
 
-    // 1. Vegetation detector: True seagrass has distinct saturation and hue
+    // 1. Vegetation Feature: Detect seagrass/algae patches
+    // OpenCV Hue: Green is [35, 85]. Require minimum saturation to avoid green water haze.
     cv::Mat greenMask;
-    // Stricter lower bound on saturation (S >= 60) avoids pale green water turbidity
-    cv::inRange(hsv, cv::Scalar(32, 60, 20), cv::Scalar(86, 255, 255), greenMask);
+    cv::inRange(hsv, cv::Scalar(32, 40, 20), cv::Scalar(88, 255, 255), greenMask);
     double greenFraction = static_cast<double>(cv::countNonZero(greenMask)) / (gray.rows * gray.cols);
 
-    // 2. Texture & edge statistics for Stone detection
+    // 2. Stone Feature: Laplacian variance measures high-frequency structural roughness
     cv::Mat laplacian;
     cv::Laplacian(gray, laplacian, CV_64F);
     cv::Scalar meanVal, stdDevVal;
     cv::meanStdDev(laplacian, meanVal, stdDevVal);
-    double laplacianVariance = stdDevVal[0] * stdDevVal[0];
+    double textureVariance = stdDevVal[0] * stdDevVal[0];
 
+    // 3. Stone Feature: Distinct boundary edges
     cv::Mat edges;
-    cv::Canny(gray, edges, 70, 160);
+    cv::Canny(gray, edges, 50, 130);
     double edgeFraction = static_cast<double>(cv::countNonZero(edges)) / (gray.rows * gray.cols);
 
-    // Decision hierarchy
-    if (greenFraction > 0.12) {
+    // Decision logic using physical seabed properties
+    if (greenFraction > 0.08) {
         return "Vegetation";
-    } else if (laplacianVariance > 95.0 || edgeFraction > 0.032) {
+    } else if (textureVariance > 45.0 || edgeFraction > 0.015) {
         return "Stones";
     } else {
         return "Bare soil";
