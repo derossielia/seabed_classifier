@@ -1,9 +1,12 @@
 // MAIN AUTHOR: Elia De Rossi (member A)
 
 #include "utils.hpp"
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <set>
+
+namespace fs = std::filesystem;
 
 namespace Utils {
 
@@ -12,13 +15,23 @@ bool loadImage(const std::string& filepath, cv::Mat& outputImage) {
     return !outputImage.empty();
 }
 
-bool savePredictionTxt(const std::string& imagePath, const std::string& label) {
-    // Replace file extension with .txt
-    size_t lastDot = imagePath.find_last_of(".");
-    std::string txtPath = (lastDot == std::string::npos) ? (imagePath + ".txt") : (imagePath.substr(0, lastDot) + ".txt");
+bool ensureDirectoryExists(const std::string& folderPath) {
+    if (!fs::exists(folderPath)) {
+        return fs::create_directories(folderPath);
+    }
+    return true;
+}
 
-    std::ofstream out(txtPath);
-    if (!out.is_open()) return false;
+bool savePredictionTxt(const std::string& outputDir, const std::string& originalFilename, const std::string& label) {
+    fs::path p(originalFilename);
+    std::string stem = p.stem().string(); // Strips extension: image.png -> image
+    std::string outPath = (fs::path(outputDir) / (stem + ".txt")).string();
+
+    std::ofstream out(outPath);
+    if (!out.is_open()) {
+        std::cerr << "[Error] Could not write to: " << outPath << std::endl;
+        return false;
+    }
     out << label << "\n";
     out.close();
     return true;
@@ -26,17 +39,17 @@ bool savePredictionTxt(const std::string& imagePath, const std::string& label) {
 
 void overlayLabel(cv::Mat& image, const std::string& label) {
     if (image.empty()) return;
-    // Bottom-left corner: origin (x=20, y=height-20)
-    cv::Point textOrigin(20, image.rows - 20);
+
+    // Place text at bottom-left
     int fontFace = cv::FONT_HERSHEY_SIMPLEX;
-    double fontScale = 1.0;
+    double fontScale = 0.9;
     int thickness = 2;
+    cv::Point origin(20, image.rows - 25);
 
-    // Background shadow for contrast against murky water
-    cv::putText(image, label, textOrigin, fontFace, fontScale, cv::Scalar(0, 0, 0), thickness + 2);
-    cv::putText(image, label, textOrigin, fontFace, fontScale, cv::Scalar(0, 255, 255), thickness);
+    // Dark contour behind yellow text ensures visibility over bright sand or dark weeds
+    cv::putText(image, label, origin, fontFace, fontScale, cv::Scalar(0, 0, 0), thickness + 2);
+    cv::putText(image, label, origin, fontFace, fontScale, cv::Scalar(0, 255, 255), thickness);
 }
-
 EvaluationSummary evaluate(const std::vector<std::string>& groundTruths,
                           const std::vector<std::string>& predictions) {
     EvaluationSummary summary;

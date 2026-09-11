@@ -17,7 +17,7 @@ cv::Mat removeNoise(const cv::Mat& inputImage, int kernelSize) {
     }
 
     cv::Mat filtered;
-    cv::medianBlur(inputImage, filtered, kernelSize);
+    cv::bilateralFilter(inputImage, filtered, 9, 75.0, 75.0);
     return filtered;
 }
 
@@ -37,33 +37,23 @@ cv::Mat convertToHSV(const cv::Mat& inputImage) {
 }
 
 cv::Mat enhanceContrast(const cv::Mat& inputImage) {
-    if (inputImage.empty()) {
-        return cv::Mat();
-    }
+    if (inputImage.empty()) return cv::Mat();
 
-    // For multi-channel images, equalize luminance only to preserve chromaticity
-    if (inputImage.channels() == 3) {
-        cv::Mat ycrcb;
-        cv::cvtColor(inputImage, ycrcb, cv::COLOR_BGR2YCrCb);
+    cv::Mat lab;
+    cv::cvtColor(inputImage, lab, cv::COLOR_BGR2Lab);
 
-        std::vector<cv::Mat> channels;
-        cv::split(ycrcb, channels);
+    std::vector<cv::Mat> channels;
+    cv::split(lab, channels);
 
-        // CLAHE avoids over-amplifying background underwater haze
-        cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(2.0, cv::Size(8, 8));
-        clahe->apply(channels[0], channels[0]);
+    // Lower clipLimit (1.5) prevents boosting murky particulate noise
+    cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(1.5, cv::Size(8, 8));
+    clahe->apply(channels[0], channels[0]);
 
-        cv::Mat enhancedYCrCb;
-        cv::merge(channels, enhancedYCrCb);
+    cv::Mat enhancedLab;
+    cv::merge(channels, enhancedLab);
 
-        cv::Mat result;
-        cv::cvtColor(enhancedYCrCb, result, cv::COLOR_YCrCb2BGR);
-        return result;
-    }
-
-    // Single-channel fallback
     cv::Mat result;
-    cv::equalizeHist(inputImage, result);
+    cv::cvtColor(enhancedLab, result, cv::COLOR_Lab2BGR);
     return result;
 }
 

@@ -1,91 +1,70 @@
 // MAIN AUTHOR: Marco Rossi (member B)
+
+#include "preprocessing.hpp"
+#include "classifier.hpp"
+#include "utils.hpp"
+#include <filesystem>
 #include <iostream>
 #include <vector>
-#include <string>
-#include <opencv2/opencv.hpp>
-#include "classifier.hpp"
-#include "preprocessing.hpp"
-#include "utils.hpp"
+
+namespace fs = std::filesystem;
 
 int main(int argc, char** argv) {
-    std::string datasetPath = "../dataset";
+    // 1. Validate arguments
+    if (argc < 2) {
+        std::cerr << "Usage: " << argv[0] << " <dataset_dir> [output_dir]" << std::endl;
+        return -1;
+    }
 
-    // Parse command line arguments
-    if (argc > 1 && argv[1] != nullptr) {
-        std::string candidate = argv[1];
-        if (candidate.find("=") == std::string::npos && !candidate.empty()) {
-            datasetPath = candidate;
+    std::string datasetDir = argv[1];
+    std::string outputDir = (argc >= 3) ? argv[2] : "./output";
+
+    Utils::ensureDirectoryExists(outputDir);
+
+    const std::vector<std::string> categories = {"Bare soil", "Stones", "Vegetation"};
+    std::vector<std::string> allGroundTruths;
+    std::vector<std::string> allPredictions;
+
+    // 2. Iterate through categories
+    for (const auto& cat : categories) {
+        fs::path catPath = fs::path(datasetDir) / cat;
+        if (!fs::exists(catPath)) continue;
+
+        for (const auto& file : fs::directory_iterator(catPath)) {
+            if (file.path().extension() == ".png" || file.path().extension() == ".jpg") {
+                cv::Mat img;
+                if (!Utils::loadImage(file.path().string(), img)) continue;
+
+                // Preprocess & Predict
+                cv::Mat denoised = Preprocessing::removeNoise(img);
+                cv::Mat enhanced = Preprocessing::enhanceContrast(denoised);
+                std::string predictedLabel = Classifier::predict(enhanced);
+
+                allGroundTruths.push_back(cat);
+                allPredictions.push_back(predictedLabel);
+
+                // Save .txt prediction into output folder
+                Utils::savePredictionTxt(outputDir, file.path().filename().string(), predictedLabel);
+
+                // Overlay label and save annotated image to output folder
+                cv::Mat annotated = img.clone();
+                Utils::overlayLabel(annotated, predictedLabel);
+                std::string outImgPath = (fs::path(outputDir) / file.path().filename()).string();
+                cv::imwrite(outImgPath, annotated);
+            }
         }
     }
 
-    std::cout << "[INFO] Loading dataset from: " << datasetPath << std::endl;
+    // 3. Print Evaluation Summary Table for the Report
+    Utils::EvaluationSummary summary = Utils::evaluate(allGroundTruths, allPredictions);
+    std::cout << "\n================ EVALUATION SUMMARY ================\n";
+    std::cout << "Overall Accuracy: " << summary.overallAccuracy * 100.0 << "%\n\n";
 
-    Classifier classifier;
-    std::vector<std::string> groundTruths;
-    std::vector<std::string> predictions;
-
-    std::vector<std::string> categories = {"Bare soil", "Stones", "Vegetation"};
-
-    // Process each category directory
-    for (const auto& category : categories) {
-        std::string categoryDir = datasetPath + "/" + category;
-        std::vector<cv::String> filepaths;
-        
-        cv::glob(categoryDir + "/*.*", filepaths, false);
-
-        std::cout << "Category '" << category << "': found " << filepaths.size() << " files." << std::endl;
-
-        for (const auto& filepath : filepaths) {
-            std::string pathStr = filepath;
-
-            // Ignore non-image files, prediction text files, and annotated outputs
-            if (pathStr.find(".txt") != std::string::npos || 
-                pathStr.find("_annotated") != std::string::npos ||
-                pathStr.find(".DS_Store") != std::string::npos) {
-                continue;
-            }
-
-            cv::Mat rawImage;
-            if (!Utils::loadImage(pathStr, rawImage)) {
-                std::cerr << "Failed to load: " << pathStr << std::endl;
-                continue;
-            }
-
-            // Image processing and classification pipeline
-            cv::Mat denoised = Preprocessing::removeNoise(rawImage, 5);
-            cv::Mat enhanced = Preprocessing::enhanceContrast(denoised);
-            std::string predictedLabel = classifier.predict(enhanced);
-
-            groundTruths.push_back(category);
-            predictions.push_back(predictedLabel);
-
-            // Export results
-            cv::Mat annotatedImage = rawImage.clone();
-            Utils::overlayLabel(annotatedImage, predictedLabel);
-            cv::imwrite(pathStr + "_annotated.jpg", annotatedImage);
-
-            Utils::savePredictionTxt(pathStr, predictedLabel);
-        }
-    }
-
-    // Performance evaluation
-    if (!groundTruths.empty()) {
-        Utils::EvaluationSummary summary = Utils::evaluate(groundTruths, predictions);
-        std::cout << "\n=== EVALUATION SUMMARY ===" << std::endl;
-        std::cout << "Overall Accuracy: " << summary.overallAccuracy * 100.0 << "%" << std::endl;
-
-        for (const auto& cat : categories) {
-            std::cout << "\n--- Class: " << cat << " ---" << std::endl;
-            if (summary.perClass.count(cat) > 0) {
-                std::cout << "  Precision: " << summary.perClass[cat].precision * 100.0 << "%" << std::endl;
-                std::cout << "  Recall:    " << summary.perClass[cat].recall * 100.0 << "%" << std::endl;
-                std::cout << "  F1-Score:  " << summary.perClass[cat].f1Score * 100.0 << "%" << std::endl;
-            } else {
-                std::cout << "  No data available." << std::endl;
-            }
-        }
-    } else {
-        std::cout << "\nWarning: No valid images found in the specified path!" << std::endl;
+    for (const auto& [cls, cm] : summary.perClass) {
+        std::cout << "Class: " << cls << "\n";
+        std::cout << "  Precision: " << cm.precision * 100.0 << "%\n";
+        std::cout << "  Recall:    " << cm.recall * 100.0 << "%\n";
+        std::cout << "  F1-Score:  " << cm.f1Score * 100.0 << "%\n\n";
     }
 
     return 0;

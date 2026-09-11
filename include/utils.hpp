@@ -22,18 +22,21 @@ struct EvaluationSummary {
     std::map<std::string, std::map<std::string, int>> confusionMatrix;
 };
 
-// Computes Accuracy, Precision, Recall, and F1 over the dataset
-EvaluationSummary evaluate(const std::vector<std::string>& groundTruths,
-                          const std::vector<std::string>& predictions);
+// Safe image loader
+bool loadImage(const std::string& filepath, cv::Mat& outputImage);
 
-// Saves the classification label to a .txt file named as the image
-bool savePredictionTxt(const std::string& imagePath, const std::string& label);
+// Creates output directory if it doesn't exist
+bool ensureDirectoryExists(const std::string& folderPath);
 
-// Writes the label in the bottom-left corner of the image
+// Writes predicted label to a .txt file inside the designated output directory
+bool savePredictionTxt(const std::string& outputDir, const std::string& originalFilename, const std::string& label);
+
+// Writes text onto the bottom-left corner of the image (as required by specs)
 void overlayLabel(cv::Mat& image, const std::string& label);
 
-// Safe loader
-bool loadImage(const std::string& filepath, cv::Mat& outputImage);
+// Computes quantitative metrics using 0-1 loss over the whole dataset
+EvaluationSummary evaluate(const std::vector<std::string>& groundTruths,
+                          const std::vector<std::string>& predictions);
 
 } // namespace Utils
 

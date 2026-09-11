@@ -19,8 +19,8 @@ add_executable(seabed_classifier
 )
 
 #connect executable with OpenCV's compiled libraries
-target_link_libraries(seabed_classifier ${OpenCV_LIBS})
+target_link_libraries(seabed_classifier ${OpenCV_LIBS} stdc++fs)
 
-set(CMAKE_CXX_STANDARD 11)          
+set(CMAKE_CXX_STANDARD 17)          
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 

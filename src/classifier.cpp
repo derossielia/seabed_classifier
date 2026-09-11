@@ -35,37 +35,36 @@ double Classifier::extractEdgeDensity(const cv::Mat& grayImage) {
 
 // Predicts the benthic habitat class based on color, texture, and intensity dispersion
 std::string Classifier::predict(const cv::Mat& inputImage) {
-    if (inputImage.empty()) {
-        return "Unknown";
-    }
+    if (inputImage.empty()) return "Unknown";
 
-    cv::Mat hsvImage, grayImage;
-    if (inputImage.channels() == 3) {
-        cv::cvtColor(inputImage, hsvImage, cv::COLOR_BGR2HSV);
-        cv::cvtColor(inputImage, grayImage, cv::COLOR_BGR2GRAY);
-    } else {
-        grayImage = inputImage.clone();
-        cv::cvtColor(inputImage, hsvImage, cv::COLOR_GRAY2BGR);
-        cv::cvtColor(hsvImage, hsvImage, cv::COLOR_BGR2HSV);
-    }
+    cv::Mat hsv, gray;
+    cv::cvtColor(inputImage, hsv, cv::COLOR_BGR2HSV);
+    cv::cvtColor(inputImage, gray, cv::COLOR_BGR2GRAY);
 
-    cv::Scalar hsvMean = extractHSVFeatures(hsvImage);
-    double edgeDensity = extractEdgeDensity(grayImage);
+    // 1. Color Criterion: Percentage of distinct green vegetation pixels
+    // Hue in OpenCV: [35, 85] covers yellowish-green to deep green
+    cv::Mat greenMask;
+    cv::inRange(hsv, cv::Scalar(35, 45, 30), cv::Scalar(85, 255, 255), greenMask);
+    double greenPixelFraction = static_cast<double>(cv::countNonZero(greenMask)) / (gray.rows * gray.cols);
 
-    double hue = hsvMean[0]; // Channel 0: Hue
-    double sat = hsvMean[1]; // Channel 1: Saturation
+    // 2. Texture Criterion: Laplacian variance measures structural roughness
+    cv::Mat laplacian;
+    cv::Laplacian(gray, laplacian, CV_64F);
+    cv::Scalar meanVal, stdDevVal;
+    cv::meanStdDev(laplacian, meanVal, stdDevVal);
+    double textureVariance = stdDevVal[0] * stdDevVal[0]; // Variance of gradients
 
-    // Habitat classification logic
-    // 1. Vegetazione: Tonalita' verde alta (Hue > 60)
-    if (hue > 60.0) {
+    // 3. Edge Contrast Criterion (Strong structural stone contours)
+    cv::Mat cannyEdges;
+    cv::Canny(gray, cannyEdges, 60, 150);
+    double strongEdgeDensity = static_cast<double>(cv::countNonZero(cannyEdges)) / (gray.rows * gray.cols);
+
+    // Decision Logic based on physical features
+    if (greenPixelFraction > 0.20) {
         return "Vegetation";
-    } 
-    // 2. Pietre: alta densita' di bordi OPPURE saturazione elevata
-    else if (edgeDensity > 0.0022 || sat > 55.0) {
+    } else if (strongEdgeDensity > 0.025 || textureVariance > 85.0) {
         return "Stones";
-    } 
-    // 3. Suolo nudo: superficie liscia e omogenea
-    else {
+    } else {
         return "Bare soil";
     }
 }
