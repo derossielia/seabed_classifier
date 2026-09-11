@@ -1,11 +1,11 @@
 // MAIN AUTHOR: Elia De Rossi (member A)
 
 #include "utils.hpp"
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <fstream>
 #include <iostream>
 #include <set>
-#include <sys/stat.h>
-#include <sys/types.h>
 
 namespace Utils {
 
@@ -17,19 +17,25 @@ bool loadImage(const std::string& filepath, cv::Mat& outputImage) {
 bool ensureDirectoryExists(const std::string& folderPath) {
     struct stat info;
     if (stat(folderPath.c_str(), &info) != 0) {
-        // Directory does not exist, create it (read/write/search permissions)
         return mkdir(folderPath.c_str(), 0755) == 0;
     }
     return (info.st_mode & S_IFDIR) != 0;
 }
 
 bool savePredictionTxt(const std::string& outputDir, const std::string& originalFilename, const std::string& label) {
-    size_t lastDot = originalFilename.find_last_of(".");
-    std::string stem = (lastDot == std::string::npos) ? originalFilename : originalFilename.substr(0, lastDot);
-    std::string outPath = outputDir + "/" + stem + ".txt";
+    // Strip original directory and extension
+    size_t lastSlash = originalFilename.find_last_of("/\\");
+    std::string base = (lastSlash == std::string::npos) ? originalFilename : originalFilename.substr(lastSlash + 1);
+    
+    size_t lastDot = base.find_last_of(".");
+    std::string stem = (lastDot == std::string::npos) ? base : base.substr(0, lastDot);
 
-    std::ofstream out(outPath);
-    if (!out.is_open()) return false;
+    std::string outPath = outputDir + "/" + stem + ".txt";
+    std::ofstream out(outPath.c_str());
+    if (!out.is_open()) {
+        std::cerr << "Failed to open " << outPath << " for writing." << std::endl;
+        return false;
+    }
     out << label << "\n";
     out.close();
     return true;
@@ -37,17 +43,17 @@ bool savePredictionTxt(const std::string& outputDir, const std::string& original
 
 void overlayLabel(cv::Mat& image, const std::string& label) {
     if (image.empty()) return;
-
-    // Place text at bottom-left
+    // Bottom-left positioning
+    cv::Point origin(20, image.rows - 25);
     int fontFace = cv::FONT_HERSHEY_SIMPLEX;
     double fontScale = 0.9;
     int thickness = 2;
-    cv::Point origin(20, image.rows - 25);
 
-    // Dark contour behind yellow text ensures visibility over bright sand or dark weeds
+    // Dark contour for legibility against murky backdrops
     cv::putText(image, label, origin, fontFace, fontScale, cv::Scalar(0, 0, 0), thickness + 2);
     cv::putText(image, label, origin, fontFace, fontScale, cv::Scalar(0, 255, 255), thickness);
 }
+
 EvaluationSummary evaluate(const std::vector<std::string>& groundTruths,
                           const std::vector<std::string>& predictions) {
     EvaluationSummary summary;
@@ -57,9 +63,8 @@ EvaluationSummary evaluate(const std::vector<std::string>& groundTruths,
 
     int totalSamples = static_cast<int>(groundTruths.size());
     int totalCorrect = 0;
-
-    // Unique classes in dataset
     std::set<std::string> classes;
+
     for (size_t i = 0; i < groundTruths.size(); ++i) {
         classes.insert(groundTruths[i]);
         classes.insert(predictions[i]);
@@ -69,10 +74,8 @@ EvaluationSummary evaluate(const std::vector<std::string>& groundTruths,
         }
     }
 
-    // Overall Accuracy (0-1 Loss)
     summary.overallAccuracy = static_cast<double>(totalCorrect) / totalSamples;
 
-    // Per-class Precision, Recall, F1
     for (const auto& cls : classes) {
         int tp = summary.confusionMatrix[cls][cls];
         int fp = 0;
@@ -80,8 +83,8 @@ EvaluationSummary evaluate(const std::vector<std::string>& groundTruths,
 
         for (const auto& other : classes) {
             if (other != cls) {
-                fp += summary.confusionMatrix[other][cls]; // Predicted cls, but actually other
-                fn += summary.confusionMatrix[cls][other]; // Actually cls, but predicted other
+                fp += summary.confusionMatrix[other][cls];
+                fn += summary.confusionMatrix[cls][other];
             }
         }
 
@@ -91,7 +94,6 @@ EvaluationSummary evaluate(const std::vector<std::string>& groundTruths,
         cm.f1Score   = (cm.precision + cm.recall > 0.0) 
                      ? (2.0 * cm.precision * cm.recall / (cm.precision + cm.recall)) 
                      : 0.0;
-
         summary.perClass[cls] = cm;
     }
 
