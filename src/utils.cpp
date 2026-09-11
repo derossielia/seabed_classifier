@@ -1,77 +1,90 @@
 // MAIN AUTHOR: Elia De Rossi (member A)
 
 #include "utils.hpp"
+#include <fstream>
 #include <iostream>
+#include <set>
 
 namespace Utils {
 
-bool loadImage(const std::string& filepath, cv::Mat& outputImage, int flags) {
-    outputImage = cv::imread(filepath, flags);
-    if (outputImage.empty()) {
-        std::cerr << "[Error] Could not load image from: " << filepath << std::endl;
-        return false;
-    }
+bool loadImage(const std::string& filepath, cv::Mat& outputImage) {
+    outputImage = cv::imread(filepath, cv::IMREAD_COLOR);
+    return !outputImage.empty();
+}
+
+bool savePredictionTxt(const std::string& imagePath, const std::string& label) {
+    // Replace file extension with .txt
+    size_t lastDot = imagePath.find_last_of(".");
+    std::string txtPath = (lastDot == std::string::npos) ? (imagePath + ".txt") : (imagePath.substr(0, lastDot) + ".txt");
+
+    std::ofstream out(txtPath);
+    if (!out.is_open()) return false;
+    out << label << "\n";
+    out.close();
     return true;
 }
 
-double computeIoU(const cv::Mat& predMask, const cv::Mat& gtMask) {
-    if (predMask.empty() || gtMask.empty()) {
-        std::cerr << "[Error] Empty mask provided to computeIoU." << std::endl;
-        return 0.0;
-    }
+void overlayLabel(cv::Mat& image, const std::string& label) {
+    if (image.empty()) return;
+    // Bottom-left corner: origin (x=20, y=height-20)
+    cv::Point textOrigin(20, image.rows - 20);
+    int fontFace = cv::FONT_HERSHEY_SIMPLEX;
+    double fontScale = 1.0;
+    int thickness = 2;
 
-    if (predMask.size() != gtMask.size() || predMask.type() != gtMask.type()) {
-        std::cerr << "[Error] Mask size or type mismatch in computeIoU." << std::endl;
-        return 0.0;
-    }
-
-    // Binary intersection and union
-    cv::Mat intersectionMat, unionMat;
-    cv::bitwise_and(predMask, gtMask, intersectionMat);
-    cv::bitwise_or(predMask, gtMask, unionMat);
-
-    int intersectionCount = cv::countNonZero(intersectionMat);
-    int unionCount = cv::countNonZero(unionMat);
-
-    if (unionCount == 0) {
-        return 1.0; // Both masks are completely empty
-    }
-
-    return static_cast<double>(intersectionCount) / static_cast<double>(unionCount);
+    // Background shadow for contrast against murky water
+    cv::putText(image, label, textOrigin, fontFace, fontScale, cv::Scalar(0, 0, 0), thickness + 2);
+    cv::putText(image, label, textOrigin, fontFace, fontScale, cv::Scalar(0, 255, 255), thickness);
 }
 
-double computePixelAccuracy(const cv::Mat& predMask, const cv::Mat& gtMask) {
-    if (predMask.empty() || gtMask.empty()) {
-        std::cerr << "[Error] Empty mask provided to computePixelAccuracy." << std::endl;
-        return 0.0;
+EvaluationSummary evaluate(const std::vector<std::string>& groundTruths,
+                          const std::vector<std::string>& predictions) {
+    EvaluationSummary summary;
+    if (groundTruths.empty() || groundTruths.size() != predictions.size()) {
+        return summary;
     }
 
-    if (predMask.size() != gtMask.size()) {
-        std::cerr << "[Error] Size mismatch in computePixelAccuracy." << std::endl;
-        return 0.0;
+    int totalSamples = static_cast<int>(groundTruths.size());
+    int totalCorrect = 0;
+
+    // Unique classes in dataset
+    std::set<std::string> classes;
+    for (size_t i = 0; i < groundTruths.size(); ++i) {
+        classes.insert(groundTruths[i]);
+        classes.insert(predictions[i]);
+        summary.confusionMatrix[groundTruths[i]][predictions[i]]++;
+        if (groundTruths[i] == predictions[i]) {
+            totalCorrect++;
+        }
     }
 
-    cv::Mat matches;
-    cv::compare(predMask, gtMask, matches, cv::CMP_EQ);
+    // Overall Accuracy (0-1 Loss)
+    summary.overallAccuracy = static_cast<double>(totalCorrect) / totalSamples;
 
-    int correctPixels = cv::countNonZero(matches);
-    int totalPixels = predMask.rows * predMask.cols;
+    // Per-class Precision, Recall, F1
+    for (const auto& cls : classes) {
+        int tp = summary.confusionMatrix[cls][cls];
+        int fp = 0;
+        int fn = 0;
 
-    return static_cast<double>(correctPixels) / static_cast<double>(totalPixels);
-}
+        for (const auto& other : classes) {
+            if (other != cls) {
+                fp += summary.confusionMatrix[other][cls]; // Predicted cls, but actually other
+                fn += summary.confusionMatrix[cls][other]; // Actually cls, but predicted other
+            }
+        }
 
-cv::Mat blendOverlay(const cv::Mat& baseImage, const cv::Mat& mask, const cv::Scalar& color, double alpha) {
-    if (baseImage.empty()) {
-        return cv::Mat();
+        ClassMetrics cm;
+        cm.precision = (tp + fp > 0) ? (static_cast<double>(tp) / (tp + fp)) : 0.0;
+        cm.recall    = (tp + fn > 0) ? (static_cast<double>(tp) / (tp + fn)) : 0.0;
+        cm.f1Score   = (cm.precision + cm.recall > 0.0) 
+                     ? (2.0 * cm.precision * cm.recall / (cm.precision + cm.recall)) 
+                     : 0.0;
+
+        summary.perClass[cls] = cm;
     }
 
-    cv::Mat coloredLayer = cv::Mat(baseImage.size(), baseImage.type(), color);
-    cv::Mat blended;
-    cv::addWeighted(coloredLayer, alpha, baseImage, 1.0 - alpha, 0, blended);
-
-    cv::Mat result = baseImage.clone();
-    blended.copyTo(result, mask);
-    return result;
+    return summary;
 }
 
 } // namespace Utils

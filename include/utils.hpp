@@ -6,20 +6,34 @@
 #include <opencv2/opencv.hpp>
 #include <string>
 #include <vector>
+#include <map>
 
 namespace Utils {
 
-// Load an image safely; returns false if the file cannot be opened
-bool loadImage(const std::string& filepath, cv::Mat& outputImage, int flags = cv::IMREAD_COLOR);
+struct ClassMetrics {
+    double precision = 0.0;
+    double recall    = 0.0;
+    double f1Score   = 0.0;
+};
 
-// Compute Intersection over Union (IoU) between a prediction mask and ground-truth mask
-double computeIoU(const cv::Mat& predMask, const cv::Mat& gtMask);
+struct EvaluationSummary {
+    double overallAccuracy = 0.0;
+    std::map<std::string, ClassMetrics> perClass;
+    std::map<std::string, std::map<std::string, int>> confusionMatrix;
+};
 
-// Compute pixel classification accuracy between predicted and ground truth masks
-double computePixelAccuracy(const cv::Mat& predMask, const cv::Mat& gtMask);
+// Computes Accuracy, Precision, Recall, and F1 over the dataset
+EvaluationSummary evaluate(const std::vector<std::string>& groundTruths,
+                          const std::vector<std::string>& predictions);
 
-// Visual helper: overlay a color-coded mask onto the background with transparency
-cv::Mat blendOverlay(const cv::Mat& baseImage, const cv::Mat& mask, const cv::Scalar& color, double alpha = 0.4);
+// Saves the classification label to a .txt file named as the image
+bool savePredictionTxt(const std::string& imagePath, const std::string& label);
+
+// Writes the label in the bottom-left corner of the image
+void overlayLabel(cv::Mat& image, const std::string& label);
+
+// Safe loader
+bool loadImage(const std::string& filepath, cv::Mat& outputImage);
 
 } // namespace Utils
 
