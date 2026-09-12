@@ -41,7 +41,8 @@ Thumbs.db
 *.a
 # === images and training data ===
 build/
-dataset/
+data/
+output/
 *.jpg
 *.png
 *.mp4
