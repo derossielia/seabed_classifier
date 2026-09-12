@@ -7,10 +7,8 @@ namespace Preprocessing {
 
 cv::Mat removeNoise(const cv::Mat& inputImage, int kernelSize) {
     if (inputImage.empty()) return cv::Mat();
-    
-    // Kernel size must be positive and odd
     if (kernelSize % 2 == 0) kernelSize += 1;
-    
+
     cv::Mat denoised;
     cv::medianBlur(inputImage, denoised, kernelSize);
     return denoised;
@@ -32,8 +30,8 @@ cv::Mat enhanceContrast(const cv::Mat& inputImage) {
     std::vector<cv::Mat> channels;
     cv::split(lab, channels);
 
-    // CLAHE on Luminance channel only (prevents color distortion)
-    cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(2.0, cv::Size(8, 8));
+    // Moderate clip limit (1.5) avoids creating artificial rock textures on sand
+    cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(1.5, cv::Size(8, 8));
     clahe->apply(channels[0], channels[0]);
 
     cv::Mat enhancedLab;
