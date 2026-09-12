@@ -36,37 +36,39 @@ bool loadImage(const std::string& filepath, cv::Mat& outputImage) {
     return !outputImage.empty();
 }
 
-bool savePredictionTxt(const std::string& imagePath, const std::string& label) {
-    size_t lastDot = imagePath.find_last_of(".");
-    std::string txtPath = (lastDot == std::string::npos) 
-                          ? (imagePath + ".txt") 
-                          : (imagePath.substr(0, lastDot) + ".txt");
+bool savePredictionTxt(const std::string& outputDir, const std::string& filename, const std::string& label) {
+    size_t lastSlash = filename.find_last_of("/\\");
+    std::string base = (lastSlash == std::string::npos) ? filename : filename.substr(lastSlash + 1);
+    
+    size_t lastDot = base.find_last_of(".");
+    std::string stem = (lastDot == std::string::npos) ? base : base.substr(0, lastDot);
 
-    std::ofstream outFile(txtPath);
-    if (!outFile.is_open()) {
-        std::cerr << "Failed to open " << txtPath << " for writing." << std::endl;
+    std::string outPath = outputDir + "/" + stem + ".txt";
+    std::ofstream out(outPath.c_str());
+    if (!out.is_open()) {
+        std::cerr << "Failed to open " << outPath << " for writing." << std::endl;
         return false;
     }
-
-    outFile << label << "\n";
-    outFile.close();
+    out << label << "\n";
+    out.close();
     return true;
 }
-}
+
 
 void overlayLabel(cv::Mat& image, const std::string& label) {
+    if (image.empty()) return;
     int fontFace = cv::FONT_HERSHEY_SIMPLEX;
     double fontScale = 0.8;
     int thickness = 2;
-    cv::Point org(15, image.rows - 15); // Bottom-left corner
+    cv::Point org(20, image.rows - 20);
 
-    // Draw shadow/outline for visibility, then text
+    // Black outline for contrast, followed by green/yellow text
     cv::putText(image, label, org, fontFace, fontScale, cv::Scalar(0, 0, 0), thickness + 2);
     cv::putText(image, label, org, fontFace, fontScale, cv::Scalar(0, 255, 0), thickness);
 }
 
-    Utils::EvaluationSummary evaluate(const std::vector<std::string>& groundTruths, const std::vector<std::string>& predictions) {
-    Utils::EvaluationSummary summary;
+EvaluationSummary evaluate(const std::vector<std::string>& groundTruths, const std::vector<std::string>& predictions) {
+    EvaluationSummary summary;
     if (groundTruths.empty() || groundTruths.size() != predictions.size()) {
         return summary;
     }
@@ -112,6 +114,7 @@ void overlayLabel(cv::Mat& image, const std::string& label) {
     }
 
     return summary;
+    }
 }
 
  // namespace Utils
