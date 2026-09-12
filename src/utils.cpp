@@ -37,31 +37,36 @@ bool loadImage(const std::string& filepath, cv::Mat& outputImage) {
 }
 
 bool savePredictionTxt(const std::string& imagePath, const std::string& label) {
-    std::string outPath = outputDir + "/" + filenameStem + ".txt";
-    std::ofstream out(outPath.c_str());
-    if (!out.is_open()) return false;
-    out << label << "\n";
-    out.close();
+    size_t lastDot = imagePath.find_last_of(".");
+    std::string txtPath = (lastDot == std::string::npos) 
+                          ? (imagePath + ".txt") 
+                          : (imagePath.substr(0, lastDot) + ".txt");
+
+    std::ofstream outFile(txtPath);
+    if (!outFile.is_open()) {
+        std::cerr << "Failed to open " << txtPath << " for writing." << std::endl;
+        return false;
+    }
+
+    outFile << label << "\n";
+    outFile.close();
     return true;
 }
 }
 
 void overlayLabel(cv::Mat& image, const std::string& label) {
-    if (image.empty()) return;
-    // Bottom-left corner: origin (x=20, y=height-20)
-    cv::Point textOrigin(20, image.rows - 20);
     int fontFace = cv::FONT_HERSHEY_SIMPLEX;
-    double fontScale = 1.0;
+    double fontScale = 0.8;
     int thickness = 2;
+    cv::Point org(15, image.rows - 15); // Bottom-left corner
 
-    // Background shadow for contrast against murky water
-    cv::putText(image, label, textOrigin, fontFace, fontScale, cv::Scalar(0, 0, 0), thickness + 2);
-    cv::putText(image, label, textOrigin, fontFace, fontScale, cv::Scalar(0, 255, 255), thickness);
+    // Draw shadow/outline for visibility, then text
+    cv::putText(image, label, org, fontFace, fontScale, cv::Scalar(0, 0, 0), thickness + 2);
+    cv::putText(image, label, org, fontFace, fontScale, cv::Scalar(0, 255, 0), thickness);
 }
 
-EvaluationSummary evaluate(const std::vector<std::string>& groundTruths,
-                          const std::vector<std::string>& predictions) {
-    EvaluationSummary summary;
+    Utils::EvaluationSummary evaluate(const std::vector<std::string>& groundTruths, const std::vector<std::string>& predictions) {
+    Utils::EvaluationSummary summary;
     if (groundTruths.empty() || groundTruths.size() != predictions.size()) {
         return summary;
     }
@@ -96,7 +101,7 @@ EvaluationSummary evaluate(const std::vector<std::string>& groundTruths,
             }
         }
 
-        ClassMetrics cm;
+        Utils::ClassMetrics cm;
         cm.precision = (tp + fp > 0) ? (static_cast<double>(tp) / (tp + fp)) : 0.0;
         cm.recall    = (tp + fn > 0) ? (static_cast<double>(tp) / (tp + fn)) : 0.0;
         cm.f1Score   = (cm.precision + cm.recall > 0.0) 
