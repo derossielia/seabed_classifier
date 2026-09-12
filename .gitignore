@@ -43,4 +43,5 @@ data/
 *.jpg
 *.png
 *.mp4
+*.zip
 seabed_classifier

@@ -1,5 +1,4 @@
 // MAIN AUTHOR: Marco Rossi (member B)
-
 #ifndef CLASSIFIER_HPP
 #define CLASSIFIER_HPP
 
@@ -9,12 +8,16 @@
 class Classifier {
 public:
     Classifier();
+
+    // Predicts the benthic habitat class ("Bare soil", "Stones", "Vegetation")
     std::string predict(const cv::Mat& inputImage);
 
 private:
-    double extractGreenFraction(const cv::Mat& hsvImage);
-    double extractTextureVariance(const cv::Mat& grayImage);
-    double extractCannyEdgeDensity(const cv::Mat& grayImage);
+    // Extracts average HSV color characteristics
+    cv::Scalar extractHSVFeatures(const cv::Mat& hsvImage);
+
+    // Computes edge pixel density using Sobel gradient
+    double extractEdgeDensity(const cv::Mat& grayImage);
 };
 
 #endif // CLASSIFIER_HPP

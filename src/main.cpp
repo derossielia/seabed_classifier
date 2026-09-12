@@ -1,5 +1,4 @@
 // MAIN AUTHOR: Marco Rossi (member B)
-
 #include <iostream>
 #include <vector>
 #include <string>
@@ -8,77 +7,93 @@
 #include "preprocessing.hpp"
 #include "utils.hpp"
 
-// Normalizes singular/plural so evaluation doesn't fail on string naming
-std::string normalizeCategory(const std::string& label) {
-    if (label == "Stone" || label == "Stones") return "Stones";
-    return label;
-}
-
 int main(int argc, char** argv) {
     std::string datasetPath = "../data";
-    std::string outputDir = "../output";
 
-    if (argc > 1 && argv[1] != nullptr) datasetPath = argv[1];
-    if (argc > 2 && argv[2] != nullptr) outputDir = argv[2];
+    if (argc > 1 && argv[1] != nullptr) {
+        std::string candidate = argv[1];
+        if (candidate.find("=") == std::string::npos && !candidate.empty()) {
+            datasetPath = candidate;
+        }
+    }
 
-    Utils::ensureDirectoryExists(outputDir);
+    std::cout << "[INFO] Loading dataset from: " << datasetPath << std::endl;
+
+    std::string textOutputDir = "output_labels";
+    std::string imagesOutputDir = "output_images";
+
+    Utils::createDirectory(textOutputDir);
+    Utils::createDirectory(imagesOutputDir);
 
     Classifier classifier;
     std::vector<std::string> groundTruths;
     std::vector<std::string> predictions;
 
-    const std::vector<std::string> folderCategories = {"Bare soil", "Stones", "Vegetation"};
+    std::vector<std::string> categories = {"Bare soil", "Stones", "Vegetation"};
 
-    for (const auto& category : folderCategories) {
+    // Process each category directory
+    for (const auto& category : categories) {
         std::string categoryDir = datasetPath + "/" + category;
         std::vector<cv::String> filepaths;
+        
         cv::glob(categoryDir + "/*.*", filepaths, false);
 
-        int validImages = 0;
+        std::cout << "Category '" << category << "': found " << filepaths.size() << " files." << std::endl;
+
         for (const auto& filepath : filepaths) {
             std::string pathStr = filepath;
-            if (pathStr.find(".png") == std::string::npos && pathStr.find(".jpg") == std::string::npos) {
+
+            // Ignore non-image files, prediction text files, and annotated outputs
+            if (pathStr.find(".txt") != std::string::npos || 
+                pathStr.find("_annotated") != std::string::npos ||
+                pathStr.find(".DS_Store") != std::string::npos) {
                 continue;
             }
 
-            cv::Mat rawImg;
-            if (!Utils::loadImage(pathStr, rawImg)) continue;
-            validImages++;
+            cv::Mat rawImage;
+            if (!Utils::loadImage(pathStr, rawImage)) {
+                std::cerr << "Failed to load: " << pathStr << std::endl;
+                continue;
+            }
 
-            cv::Mat denoised = Preprocessing::removeNoise(rawImg, 5);
+            // Image processing and classification pipeline
+            cv::Mat denoised = Preprocessing::removeNoise(rawImage, 5);
             cv::Mat enhanced = Preprocessing::enhanceContrast(denoised);
-            std::string pred = classifier.predict(enhanced);
+            std::string predictedLabel = classifier.predict(enhanced);
 
-            groundTruths.push_back(normalizeCategory(category));
-            predictions.push_back(normalizeCategory(pred));
+            groundTruths.push_back(category);
+            predictions.push_back(predictedLabel);
+            std::string fileStem = Utils::getFileStem(pathStr);
 
-            // Save .txt prediction in root output/ folder
-            Utils::savePredictionTxt(outputDir, pathStr, pred);
+            // Export results
+            cv::Mat annotatedImage = rawImage.clone();
+            Utils::overlayLabel(annotatedImage, predictedLabel);
+            std::string imgOutPath = imagesOutputDir + "/" + fileStem + "_annotated.jpg";
+            cv::imwrite(imgOutPath, annotatedImage);
 
-            // Overlay label and save annotated image
-            cv::Mat annotated = rawImg.clone();
-            Utils::overlayLabel(annotated, pred);
-            size_t slash = pathStr.find_last_of("/\\");
-            std::string fname = (slash == std::string::npos) ? pathStr : pathStr.substr(slash + 1);
-            cv::imwrite(outputDir + "/" + fname, annotated);
+            Utils::savePredictionTxt(textOutputDir, fileStem, predictedLabel);
         }
-        std::cout << "Category '" << category << "': found " << validImages << " valid images." << std::endl;
     }
 
+    // Performance evaluation
     if (!groundTruths.empty()) {
         Utils::EvaluationSummary summary = Utils::evaluate(groundTruths, predictions);
         std::cout << "\n=== EVALUATION SUMMARY ===" << std::endl;
-        std::cout << "Overall Accuracy: " << summary.overallAccuracy * 100.0 << "%\n" << std::endl;
+        std::cout << "Overall Accuracy: " << summary.overallAccuracy * 100.0 << "%" << std::endl;
 
-        for (const auto& cat : folderCategories) {
-            std::string normCat = normalizeCategory(cat);
-            std::cout << "--- Class: " << cat << " ---" << std::endl;
-            if (summary.perClass.count(normCat) > 0) {
-                std::cout << "  Precision: " << summary.perClass[normCat].precision * 100.0 << "%" << std::endl;
-                std::cout << "  Recall:    " << summary.perClass[normCat].recall * 100.0 << "%" << std::endl;
-                std::cout << "  F1-Score:  " << summary.perClass[normCat].f1Score * 100.0 << "%\n" << std::endl;
+        for (const auto& cat : categories) {
+            std::cout << "\n--- Class: " << cat << " ---" << std::endl;
+            if (summary.perClass.count(cat) > 0) {
+                std::cout << "  Precision: " << summary.perClass[cat].precision * 100.0 << "%" << std::endl;
+                std::cout << "  Recall:    " << summary.perClass[cat].recall * 100.0 << "%" << std::endl;
+                std::cout << "  F1-Score:  " << summary.perClass[cat].f1Score * 100.0 << "%" << std::endl;
+            } else {
+                std::cout << "  No data available." << std::endl;
             }
         }
+    } else {
+        std::cout << "\nWarning: No valid images found in the specified path!" << std::endl;
     }
+
     return 0;
 }
