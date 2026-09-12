@@ -1,3 +1,4 @@
+// src/main.cpp
 // MAIN AUTHOR: Marco Rossi (member B)
 #include <iostream>
 #include <vector>
@@ -10,7 +11,6 @@
 int main(int argc, char** argv) {
     std::string datasetPath = "../dataset";
 
-    // Parse command line arguments
     if (argc > 1 && argv[1] != nullptr) {
         std::string candidate = argv[1];
         if (candidate.find("=") == std::string::npos && !candidate.empty()) {
@@ -20,25 +20,34 @@ int main(int argc, char** argv) {
 
     std::cout << "[INFO] Loading dataset from: " << datasetPath << std::endl;
 
+    // Output folders
+    std::string textOutputDir = "output_labels";
+    std::string imagesOutputDir = "output_images";
+
+    Utils::createDirectory(textOutputDir);
+    Utils::createDirectory(imagesOutputDir);
+
     Classifier classifier;
     std::vector<std::string> groundTruths;
     std::vector<std::string> predictions;
 
-    std::vector<std::string> categories = {"Bare soil", "Stones", "Vegetation"};
+    std::vector<std::string> categories;
+    categories.push_back("Bare soil");
+    categories.push_back("Stones");
+    categories.push_back("Vegetation");
 
-    // Process each category directory
-    for (const auto& category : categories) {
+    for (size_t c = 0; c < categories.size(); ++c) {
+        const std::string& category = categories[c];
         std::string categoryDir = datasetPath + "/" + category;
         std::vector<cv::String> filepaths;
-        
+
         cv::glob(categoryDir + "/*.*", filepaths, false);
 
         std::cout << "Category '" << category << "': found " << filepaths.size() << " files." << std::endl;
 
-        for (const auto& filepath : filepaths) {
-            std::string pathStr = filepath;
+        for (size_t i = 0; i < filepaths.size(); ++i) {
+            std::string pathStr = filepaths[i];
 
-            // Ignore non-image files, prediction text files, and annotated outputs
             if (pathStr.find(".txt") != std::string::npos || 
                 pathStr.find("_annotated") != std::string::npos ||
                 pathStr.find(".DS_Store") != std::string::npos) {
@@ -51,7 +60,7 @@ int main(int argc, char** argv) {
                 continue;
             }
 
-            // Image processing and classification pipeline
+            // Preprocess & classify
             cv::Mat denoised = Preprocessing::removeNoise(rawImage, 5);
             cv::Mat enhanced = Preprocessing::enhanceContrast(denoised);
             std::string predictedLabel = classifier.predict(enhanced);
@@ -59,22 +68,26 @@ int main(int argc, char** argv) {
             groundTruths.push_back(category);
             predictions.push_back(predictedLabel);
 
-            // Export results
+            std::string fileStem = Utils::getFileStem(pathStr);
+
+            // Save annotated image
             cv::Mat annotatedImage = rawImage.clone();
             Utils::overlayLabel(annotatedImage, predictedLabel);
-            cv::imwrite(pathStr + "_annotated.jpg", annotatedImage);
+            std::string imgOutPath = imagesOutputDir + "/" + fileStem + "_annotated.jpg";
+            cv::imwrite(imgOutPath, annotatedImage);
 
-            Utils::savePredictionTxt(pathStr, predictedLabel);
+            // Save prediction label
+            Utils::savePredictionTxt(textOutputDir, fileStem, predictedLabel);
         }
     }
 
-    // Performance evaluation
     if (!groundTruths.empty()) {
         Utils::EvaluationSummary summary = Utils::evaluate(groundTruths, predictions);
         std::cout << "\n=== EVALUATION SUMMARY ===" << std::endl;
         std::cout << "Overall Accuracy: " << summary.overallAccuracy * 100.0 << "%" << std::endl;
 
-        for (const auto& cat : categories) {
+        for (size_t c = 0; c < categories.size(); ++c) {
+            const std::string& cat = categories[c];
             std::cout << "\n--- Class: " << cat << " ---" << std::endl;
             if (summary.perClass.count(cat) > 0) {
                 std::cout << "  Precision: " << summary.perClass[cat].precision * 100.0 << "%" << std::endl;

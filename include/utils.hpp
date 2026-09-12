@@ -1,5 +1,5 @@
+// include/utils.hpp
 // MAIN AUTHOR: Elia De Rossi (member A)
-
 #ifndef UTILS_HPP
 #define UTILS_HPP
 
@@ -23,11 +23,16 @@ struct EvaluationSummary {
 };
 
 // Computes Accuracy, Precision, Recall, and F1 over the dataset
-EvaluationSummary evaluate(const std::vector<std::string>& groundTruths,
-                          const std::vector<std::string>& predictions);
+EvaluationSummary evaluate(const std::vector<std::string>& groundTruths, const std::vector<std::string>& predictions);
 
-// Saves the classification label to a .txt file named as the image
-bool savePredictionTxt(const std::string& imagePath, const std::string& label);
+// Creates directory cross-platform/POSIX compatible without <filesystem>
+bool createDirectory(const std::string& path);
+
+// Extracts the file stem (filename without path and extension)
+std::string getFileStem(const std::string& filepath);
+
+// Saves the classification label to a .txt file in the target directory
+bool savePredictionTxt(const std::string& outputDir, const std::string& filenameStem, const std::string& label);
 
 // Writes the label in the bottom-left corner of the image
 void overlayLabel(cv::Mat& image, const std::string& label);
