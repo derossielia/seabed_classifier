@@ -6,15 +6,21 @@
 #include <opencv2/opencv.hpp>
 #include <string>
 
+struct HabitatScores {
+    double soil = 0.0;
+    double stone = 0.0;
+    double veg = 0.0;
+};
+
 class Classifier {
 public:
     Classifier();
-    std::string predict(const cv::Mat& inputImage);
+    
+    // Computes independent continuous scores for each backdrop
+    HabitatScores computeScores(const cv::Mat& inputImage);
 
-private:
-    double extractGreenFraction(const cv::Mat& hsvImage);
-    double extractTextureVariance(const cv::Mat& grayImage);
-    double extractCannyEdgeDensity(const cv::Mat& grayImage);
+    // Predicts the class with the maximum weighted score
+    std::string predict(const cv::Mat& inputImage);
 };
 
 #endif // CLASSIFIER_HPP
