@@ -12,6 +12,7 @@ namespace Preprocessing {
     cv::Mat convertToHSV(const cv::Mat& inputImage);                        // convert BGR to HSV for robust color analysis
 
     cv::Mat enhanceContrast(const cv::Mat& inputImage);                     // handle uneven lighting
+    void preprocessImage(const cv::Mat& input, cv::Mat& output);
 
 }
 

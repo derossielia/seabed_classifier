@@ -27,7 +27,7 @@ double Classifier::extractEdgeDensity(const cv::Mat& grayImage) {
     cv::addWeighted(absGradX, 0.5, absGradY, 0.5, 0, grad);
 
     // Edge binarization
-    cv::threshold(grad, binaryEdges, 50, 255, cv::THRESH_BINARY);
+    cv::threshold(grad, binaryEdges, 57, 255, cv::THRESH_BINARY);
 
     int edgePixels = cv::countNonZero(binaryEdges);
     return static_cast<double>(edgePixels) / (grayImage.rows * grayImage.cols);
